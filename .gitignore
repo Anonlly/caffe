@@ -31,3 +31,6 @@ yarn-error.log*
 # vercel
 .vercel
 .env
+
+# firebase admin private key
+serviceAccountKey.json
