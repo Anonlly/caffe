@@ -55,6 +55,7 @@ export default function Settings(props) {
   const { isOpen: isCropModalOpen, onOpen: openCropModal, onClose: closeCropModal } = useDisclosure()
   const [name, setName] = useState("")
   const [crop, setCrop] = useState()
+  const [isLoading, setLoading] = useState(false)
   const [completedCrop, setCompletedCrop] = useState()
   const [displayName, setDisplayName] = useState("")
   const [newAvatarURL, setNewAvatarURL] = useState({})
@@ -67,6 +68,7 @@ export default function Settings(props) {
       setName(userStore.fullName)
       setDisplayName(userStore.name)
     }
+    console.log(userStore)
   }, [userStore])
 
   // Command handling function, for now only for logging out
@@ -123,20 +125,28 @@ export default function Settings(props) {
   // save cropped image to firestore, firebase-auth, and userStore
   const updateAvatar = () => {
     (async () => {
+      setLoading(true)
       const Auth = auth.getAuth(app)
-
+      const croppedImg = await imgPreview(imgRef.current, completedCrop)
+      console.log("dispatching temporary avatar")
+      dispatchUserStore({ type: "SetTemporaryAvatar", data: { avatar: croppedImg.base64 } })
+      console.log("temporary avatar dispatched")
+      closeCropModal()
+      setLoading(false)
       const Firestore = firestore.getFirestore(app)
       const document = firestore.doc(Firestore, "/users/" + Auth.currentUser.uid)
       const docData = (await firestore.getDoc(document)).data()
 
       const Storage = storage.getStorage(app, "gs://caffe-cacf0.appspot.com")
       const storageRef = storage.ref(Storage, "/user/" + Auth.currentUser.uid)
-      const croppedImg = await imgPreview(imgRef.current, completedCrop)
-      const result = await storage.uploadBytes(storageRef, croppedImg)
+
+      const result = await storage.uploadBytes(storageRef, croppedImg.blob)
+      const file = await (await fetch("/api/image?uid=" + Auth.currentUser.uid)).json()
+      console.log(file)
       const url = await storage.getDownloadURL(result.ref)
       firestore.setDoc(document, { ...docData, avatar: url })
       dispatchUserStore({ type: "UpdateAvatar", data: { avatar: url } })
-      closeCropModal()
+
     })()
   }
   return (
@@ -158,7 +168,7 @@ export default function Settings(props) {
             }
           </ModalBody>
           <ModalFooter>
-            <Button onClick={updateAvatar}>Save</Button>
+            <Button isLoading={isLoading? "isLoading" : ""} onClick={updateAvatar}>Save</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

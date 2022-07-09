@@ -1,18 +1,23 @@
 import * as admin from "firebase-admin"
 import serviceAccount from "../../serviceAccountKey.json"
 import sharp from "sharp" // https://sharp.pixelplumbing.com/
-
-const app = admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://caffe-cacf0-default-rtdb.asia-southeast1.firebasedatabase.app"
-})
+let app
+if (admin.apps.length === 0) {
+  app = admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: "https://caffe-cacf0-default-rtdb.asia-southeast1.firebasedatabase.app"
+  })
+} else {
+  app = admin.apps[0]
+}
 
 const compress = sharp()
   .resize({
     width: 300,
     height: 300,
     fit: sharp.fit.fill
-  });
+  })
+  .webp({ effort: 0 });
 /**
  * Image route handler function
  * the only purpose of this function is to compress 
@@ -30,7 +35,7 @@ export default function handler(req, res) {
   (async () => {
     const { uid } = req.query
     const storage = admin.storage(app)
-    const bucket = storage.bucket()
+    const bucket = storage.bucket("caffe-cacf0.appspot.com")
     const files = await bucket.getFiles({
       prefix: `user/${uid}`
     })
@@ -39,11 +44,17 @@ export default function handler(req, res) {
       .on("error", (err) => {
         res.status(500)
       })
-      .on("end", () => {
-        res.status(200)
+      .on("finish", () => {
+        res.status(200).json({ status: "success", downloadURL: file.publicUrl() })
       })
       .pipe(compress)
-      .pipe(file.createWriteStream())
-    res.status(200).json({ name: 'John Doe' })
+      .pipe(file.createWriteStream({
+        metadata: {
+          contentType: 'image/webp',
+          metadata: {
+            custom: 'metadata'
+          }
+        }
+      }))
   })()
 }

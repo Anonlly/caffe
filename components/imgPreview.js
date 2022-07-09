@@ -8,6 +8,8 @@ function toBlob(canvas){
   })
 }
 
+
+
 // Returns an image source you should set to state and pass
 // `{previewSrc && <img alt="Crop preview" src={previewSrc} />}`
 export async function imgPreview(
@@ -20,5 +22,6 @@ export async function imgPreview(
   canvasPreview(image, canvas, crop, scale, rotate)
 
   const blob = await toBlob(canvas)
-  return blob
+  const base64 = canvas.toDataURL()
+  return { blob, base64 }
 }

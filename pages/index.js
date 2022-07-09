@@ -66,6 +66,8 @@ function userReducer(state, action) {
       })
       localStorage.setItem("user", JSON.stringify({ ...state, ...action.data }))
       return { ...state, ...action.data }
+    case "SetTemporaryAvatar":
+      return { ...state, avatar: action.data.avatar }
     default:
       throw new Error("Please provide valid reducer action")
   }
