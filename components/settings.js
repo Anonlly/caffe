@@ -7,13 +7,10 @@ import {
   ModalHeader,
   ModalCloseButton,
   ModalBody,
-  Text,
   Button,
   Icon,
-  Box,
   ModalFooter,
   FormControl,
-  FormHelperText,
   Input,
   FormLabel,
   Image,
@@ -27,7 +24,7 @@ import ReactCrop, {
 } from "react-image-crop"
 import { imgPreview } from './imgPreview'
 import 'react-image-crop/dist/ReactCrop.css'
-import { UserContext, AppContext } from "../pages"
+import { UserContext } from "../pages"
 import { FaEdit } from 'react-icons/fa'
 import app from "../utils/firebase"
 import * as auth from "firebase/auth"
@@ -126,13 +123,13 @@ export default function Settings(props) {
   const updateAvatar = () => {
     (async () => {
       setLoading(true)
-      const Auth = auth.getAuth(app)
       const croppedImg = await imgPreview(imgRef.current, completedCrop)
       console.log("dispatching temporary avatar")
       dispatchUserStore({ type: "SetTemporaryAvatar", data: { avatar: croppedImg.base64 } })
       console.log("temporary avatar dispatched")
       closeCropModal()
       setLoading(false)
+      const Auth = auth.getAuth(app)
       const Firestore = firestore.getFirestore(app)
       const document = firestore.doc(Firestore, "/users/" + Auth.currentUser.uid)
       const docData = (await firestore.getDoc(document)).data()

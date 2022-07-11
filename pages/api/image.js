@@ -28,8 +28,10 @@ const compress = sharp()
  * @param {http.ServerResponse} res 
  * https://nodejs.org/api/http.html#class-httpserverresponse
  * 
- * Expected query :
- * {string} uid : User ID (required)
+ * Expected Query :
+ *  - {string} uid : User ID (required)
+ * Expected Body: None
+ * Required Headers: None
  */
 export default function handler(req, res) {
   (async () => {

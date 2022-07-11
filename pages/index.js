@@ -10,11 +10,12 @@ import {
 import { SettingsIcon } from "@chakra-ui/icons"
 import color from "../etc/colors"
 import Head from 'next/head'
-import React, { useEffect, useState, useReducer } from 'react'
+import React, { useEffect, useReducer } from 'react'
 import app from "../utils/firebase"
 import * as auth from "firebase/auth"
 import * as firestore from "firebase/firestore"
 
+import ServerList from "../components/serverList"
 import Login from "../components/login"
 import Settings from "../components/settings"
 import { setDoc } from 'firebase/firestore'
@@ -24,13 +25,15 @@ import { setDoc } from 'firebase/firestore'
  * below are store's expected properties
  */
 const UserContext = React.createContext()
-const userInitialState = {
+let userInitialState = {
   name: "",
   email: "",
   createdAt: "",
   avatar: "",
-  fullName: ""
+  fullName: "",
+  servers: []
 }
+
 function userReducer(state, action) {
   const Auth = auth.getAuth(app)
   switch (action.type) {
@@ -48,7 +51,8 @@ function userReducer(state, action) {
         email: action.data.email,
         createdAt: action.data.createdAt,
         avatar: action.data.avatar,
-        fullName: action.data.fullName
+        fullName: action.data.fullName,
+        servers: action.data.servers
       }
     case 'Logout':
       localStorage.setItem("user", "{}")
@@ -105,27 +109,48 @@ export { AppContext }
 export default function Home() {
   const [userStore, dispatchUserStore] = useReducer(userReducer, userInitialState)
   const [appStore, dispatchAppStore] = useReducer(appReducer, appInitialState)
-
   useEffect(() => {
+    if (appStore.config.isLoggedIn) {
+      onLoginClose()
+    }
+  }, [appStore])
+  useEffect(() => {
+    try {
+      const localUser = JSON.parse(localStorage.getItem("user"))
+      dispatchUserStore({ type: "Login", data: localUser })
+    } catch (e) {
+      console.log("failed to load data from local storage")
+    }
     const Auth = auth.getAuth(app)
+
     localStorage.getItem("isLoggedIn") === "true" && onLoginClose()
     Auth.onAuthStateChanged(user => {
-      if (user === null) {
-        return
-      }
-      if (user.email !== null) {
-        localStorage.setItem("isLoggedIn", "true")
-        onLoginClose()
-        dispatchUserStore({
-          type: "Login", data: {
-            uid: user.uid,
-            name: user.displayName.split(" ")[0],
-            email: user.email,
-            createdAt: user.metadata.creationTime,
-            avatar: user.photoURL,
-            fullName: user.displayName
+      if (Auth.currentUser !== null) {
+
+        (async () => {
+          try {
+
+            const Firestore = firestore.getFirestore(app)
+            const document = firestore.doc(Firestore, "/users/" + Auth.currentUser.uid)
+            const docData = (await firestore.getDoc(document)).data()
+            if (docData) {
+              docData.name &&
+                dispatchUserStore({
+                  type: "Login", data: {
+                    uid: Auth.currentUser.uid,
+                    name: docData.name,
+                    email: Auth.currentUser.email,
+                    createdAt: Auth.currentUser.metadata.creationTime,
+                    avatar: Auth.currentUser.photoURL,
+                    fullName: Auth.currentUser.displayName,
+                    servers: docData.servers
+                  }
+                })
+            }
+          } catch (e) {
+
           }
-        })
+        })()
       }
     })
   }, [])
@@ -144,16 +169,17 @@ export default function Home() {
 
           <main>
             <Flex sx={{ filter: isLoginOpen ? "blur(5px)" : "none" }} flexDirection={"row"} height="100vh">
-              <Box bg={color.subBase} minW={"250px"} maxW={"250px"} flexGrow={1}>
-                <Flex flexDirection={"row"} margin="30px 15px" alignItems="center">
-                  <Avatar src={userStore.avatar} borderRadius={"15px"} />
+              <Box bg={color.subBase} minW={"280px"} maxW={"300px"} flexGrow={1}>
+                <Flex flexDirection={"row"} margin="40px 20px" alignItems="center">
+                  <Avatar size="md" src={userStore.avatar} borderRadius={"15px"} />
                   <Box marginLeft={3}>
-                    <Text color={color.rosewater}>{userStore.fullName}</Text>
-                    <Text color={color.subtext}>Online</Text>
+                    <Text fontSize={"18px"} color={color.rosewater}>{userStore.name}</Text>
+                    <Text fontSize={"14px"} color={color.subtext}>Online</Text>
                   </Box>
                   <Spacer />
-                  <SettingsIcon w={5} h={5} marginRight={"1vw"} cursor="pointer" color="#AAAAAA" onClick={onOpen} />
+                  <SettingsIcon w={5} h={5} marginRight={"0"} cursor="pointer" color="#AAAAAA" onClick={onOpen} />
                 </Flex>
+                <ServerList />
               </Box>
               <Box bg={color.base} flexGrow={19}>
 

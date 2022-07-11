@@ -58,7 +58,7 @@ export default function Login(props) {
       console.log(result)
       console.log(docData)
       // Check either user is new or already exists
-      if(docData !== undefined && (docData.name !== undefined || docData.name !== null)){ 
+      if (docData !== undefined && (docData.name !== undefined || docData.name !== null)) {
 
         // If user already exists, name from firestore is used as displayName
 
@@ -69,7 +69,8 @@ export default function Login(props) {
           email: result.user.email,
           createdAt: result.user.metadata.creationTime,
           avatar: result.user.photoURL,
-          fullName: result.user.displayName
+          fullName: result.user.displayName,
+          servers: docData.servers
         })
 
         // dispatch auth data to userStore
@@ -81,7 +82,8 @@ export default function Login(props) {
             email: result.user.email,
             createdAt: result.user.metadata.creationTime,
             avatar: result.user.photoURL,
-            fullName: result.user.displayName
+            fullName: result.user.displayName,
+            servers: docData.servers
           }
         })
         console.log("dispatch complete")
@@ -95,7 +97,16 @@ export default function Login(props) {
           email: result.user.email,
           createdAt: result.user.metadata.creationTime,
           avatar: result.user.photoURL,
-          fullName: result.user.displayName
+          fullName: result.user.displayName,
+          // invite user to default server, aka caffe
+          servers: ["1BDL4HtrOJpOMyal84ws"]
+        })
+        // Join to default server
+        const JWT = await result.user.getIdToken(true)
+        fetch("/api/join-server?ServerID=1BDL4HtrOJpOMyal84ws", {
+          headers:{
+            'Authorization': `Bearer ${JWT}`
+          }
         })
 
         // dispatch auth data to userStore
@@ -106,10 +117,13 @@ export default function Login(props) {
             email: result.user.email,
             createdAt: result.user.metadata.creationTime,
             avatar: result.user.photoURL,
-            fullName: result.user.displayName
+            fullName: result.user.displayName,
+            servers: ["1BDL4HtrOJpOMyal84ws"]
+
           }
         })
       }
+      onLoginClose()
       dispatchAppStore({ type: "ChangeConfig", data: { config: { isLoggedIn: true } } })
     })()
   }
@@ -132,6 +146,9 @@ export default function Login(props) {
         const document = firestore.doc(Firestore, "/users/" + result.user.uid)
         const docData = (await firestore.getDoc(document)).data()
         let disname
+        let servers = ["1BDL4HtrOJpOMyal84ws"]
+        // check if user is new or already exists
+        // preparation for email sign-up feature in the future
         if (result.user.displayName === null && result.user.photoURL === null) {
           disname = base.displayName(result.user.email)
           await auth.updateProfile(result.user, {
@@ -148,9 +165,12 @@ export default function Login(props) {
           await auth.updateProfile(result.user, {
             photoURL: base.Avatar
           })
-        }else{
-          if(docData.name !== undefined || docData.name !== null){  
-            disname = docData.name           
+        } else {
+          if (docData.name !== undefined && docData.name !== null) {
+            disname = docData.name
+          }
+          if (docData.servers !== undefined && docData.servers !== null){
+            servers = docData.servers
           }
         }
 
@@ -161,7 +181,8 @@ export default function Login(props) {
           email: result.user.email,
           createdAt: result.user.metadata.creationTime,
           avatar: result.user.photoURL,
-          fullName: result.user.displayName
+          fullName: result.user.displayName,
+          servers
         })
         dispatchUserStore({
           type: "Login", data: {
@@ -170,9 +191,12 @@ export default function Login(props) {
             email: result.user.email,
             createdAt: result.user.metadata.creationTime,
             avatar: result.user.photoURL === null ? base.Avatar : result.user.photoURL,
-            fullName: result.user.displayName === null ? base.displayName(result.user.email) : result.user.displayName
+            fullName: result.user.displayName === null ? base.displayName(result.user.email) : result.user.displayName,
+            servers
           }
         })
+      onLoginClose()
+
       } catch (e) {
         setError("The provided credential isn't correct.")
       }
