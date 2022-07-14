@@ -20,17 +20,18 @@ import { MdTask } from "react-icons/md"
 import { AiOutlineMinus } from "react-icons/ai"
 import { FaHashtag, FaMap, FaAngleDown } from "react-icons/fa"
 import { Timestamp } from "firebase/firestore"
-import { UserContext } from "../pages"
+import { UserContext, AppContext } from "../pages"
 import React, { useEffect, useContext, useState, createContext } from "react"
 import * as firestore from "firebase/firestore"
 import * as auth from "firebase/auth"
 import app from "../utils/firebase"
 
-interface ActiveServer{
+interface ActiveServer {
   active: Array<number>,
-  setActive: (id:Array<number>) => void
+  setActive: (id: Array<number>) => void
 }
 const ActiveServer = createContext<ActiveServer | null>(null)
+
 interface Server {
   name: string,
   icon: string,
@@ -40,67 +41,75 @@ interface Server {
   lastActivity: string,
   lastActivityTime: Timestamp,
   members: string[],
-  tasks: string[]
+  tasks: firestore.DocumentReference[]
 }
 
 export { ActiveServer }
 
 export default function ServerList() {
   const { userStore, dispatchUserStore } = useContext(UserContext)
+  const { appStore, dispatchAppStore } = useContext(AppContext)
   const [activeServer, setActiveServer] = useState<Array<number>>([0, 0])
   const [servers, setServers] = useState<Array<Server>>([])
   const [categories, setCategories] = useState<Array<string>>([])
   useEffect(() => {
-    try {
-      const Auth: auth.Auth = auth.getAuth(app)
-      if (Auth.currentUser) {
-        const Firestore: firestore.Firestore = firestore.getFirestore(app)
-        const returnedServers: Array<Server> = []
-        new Promise<void>((resolve, reject) => {
-          userStore.servers.map((server, id) => {
-            (async () => {
-              server = server.split(" ").join("")
-              const document: firestore.DocumentReference = firestore.doc(Firestore, "/server/" + server)
-              const docData: firestore.DocumentData | undefined = (await firestore.getDoc(document)).data()
-              if (docData) {
-                returnedServers.push(docData as Server)
-              }
-              if (id === userStore.servers.length - 1) {
-                resolve()
-              }
-            })().then(() => {
+    setServers(appStore.servers)
+  }, [appStore])
+  useEffect(() => {
+    (async () => {
+      try {
+        const Auth: auth.Auth = auth.getAuth(app)
+        if (Auth.currentUser) {
+          const Firestore: firestore.Firestore = firestore.getFirestore(app)
+          const returnedServers: Array<Server> = []
+          new Promise<void>((resolve, reject) => {
+            userStore.servers.map((server, id) => {
+              (async () => {
+                server = server.split(" ").join("")
+                const document: firestore.DocumentReference = firestore.doc(Firestore, "/server/" + server)
+                const docData: firestore.DocumentData | undefined = (await firestore.getDoc(document)).data()
+                if (docData) {
+                  returnedServers.push(docData as Server)
+                }
+                if (id === userStore.servers.length - 1) {
+                  resolve()
+                }
+              })().then(() => {
 
-            }).catch(e => {
-              console.log(e)
+              }).catch(e => {
+                console.log(e)
+              })
             })
+          }).then(() => {
+            let tmpCategories: Array<string> = []
+            returnedServers.forEach((server, id) => {
+              tmpCategories.indexOf(server.category) === -1 && tmpCategories.push(server.category)
+            })
+            dispatchAppStore({ type: "AddServers", data: { servers: returnedServers } })
+            returnedServers.sort((a, b) => {
+              return (new Date(a.lastActivityTime.seconds)).getTime() - (new Date(b.lastActivityTime.seconds)).getTime()
+            })
+            setCategories(tmpCategories)
+            setServers(returnedServers)
           })
-        }).then(() => {
-          let tmpCategories: Array<string> = []
-          returnedServers.forEach((server, id) => {
-            tmpCategories.indexOf(server.category) === -1 && tmpCategories.push(server.category)
-          })
-          returnedServers.sort((a, b) => {
-            return a.lastActivityTime.toDate().getTime() - b.lastActivityTime.toDate().getTime()
-          })
-          setCategories(tmpCategories)
-          setServers(returnedServers)
-        })
+        }
       }
-    }
-    catch (e) {
-      console.log(e)
-    }
+      catch (e) {
+        console.log(e)
+      }
+    })()
   }, [userStore])
   return (
-    <ActiveServer.Provider value={{active: activeServer, setActive: setActiveServer}}>
-      <Select m={"10px 25px 50px 25px"} w="auto" variant={"filled"} colorScheme="mochaPink" placeholder="General">
+    <ActiveServer.Provider value={{ active: activeServer, setActive: setActiveServer }}>
+      <Select m={"10px 25px 25px 25px"} w="auto" variant={"filled"} colorScheme="mochaPink" placeholder="General">
         {categories.map((category, id) => {
           return <option key={id}>{category}</option>
         })}
       </Select>
       <Box h={"300px"} overflow="auto">
         {servers.map((server, id) => {
-          const lastActivityDate: Date = server.lastActivityTime.toDate()
+          console.log(server)
+          const lastActivityDate: Date = new Date(server.lastActivityTime.seconds * 1000)
           let lastActivityString: string
           const yesterday: Date = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
@@ -115,7 +124,7 @@ export default function ServerList() {
           }
           return (
             <>
-              <ServerCard server={server} id={id} lastActivityString={lastActivityString} />
+              <ServerCard key={id} server={server} id={id} lastActivityString={lastActivityString} />
             </>
           )
         })}
@@ -123,7 +132,7 @@ export default function ServerList() {
       <Center h={"20px"}>
         <Icon w={5} h={5} as={FaAngleDown} />
       </Center>
-      <Flex mt={"30px"}>
+      <Flex mt={"40px"}>
         <Menu >
           <MenuButton
             as={Button}
@@ -161,8 +170,8 @@ const ServerCard = (props) => {
     return value2
   }
   return (
-    <>
-      <Flex mt={"25px"} ml={"20px"} cursor="pointer" userSelect={"none"} onClick={()=>{
+    <Box key={id}>
+      <Flex mt={"25px"} ml={"20px"} cursor="pointer" userSelect={"none"} onClick={() => {
         active[0] === id ? setActive([-1, 0]) : setActive([id, activeChannel.indexOf(true)])
       }}>
         <Avatar borderRadius={"10px"} src={server.icon} />
@@ -241,6 +250,6 @@ const ServerCard = (props) => {
           </Flex>
         </Box>
       </Collapse>
-    </>
+    </Box>
   )
 }

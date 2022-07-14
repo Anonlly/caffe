@@ -14,11 +14,12 @@ import React, { useEffect, useReducer } from 'react'
 import app from "../utils/firebase"
 import * as auth from "firebase/auth"
 import * as firestore from "firebase/firestore"
+import { db } from "../utils/db"
 
 import ServerList from "../components/serverList"
 import Login from "../components/login"
 import Settings from "../components/settings"
-import { setDoc } from 'firebase/firestore'
+import Main from "../components/main/index"
 
 /**
  * initialization of User store
@@ -83,20 +84,41 @@ function userReducer(state, action) {
  * below are store's expected properties
  */
 const AppContext = React.createContext()
-const appInitialState = {
+let appInitialState = {
   tasks: [],
   servers: [],
   config: {
     isLoggedIn: false,
   }
 }
+
 function appReducer(state, action) {
   switch (action.type) {
     case 'AddTask':
+      db.tasks.put(action.data.task)
       return { ...state, tasks: [...state.tasks, action.data.task] }
+    case 'AddTasks':
+      db.tasks.bulkPut(action.data.tasks)
+      return { ...state, tasks: [...state.tasks, ...action.data.tasks] }
     case 'AddServer':
+      const servTasks = action.data.server.tasks.map(task => {
+        return task.id.split(" ").join("")
+      })
+      db.servers.put({ ...action.data.server, tasks: servTasks })
       return { ...state, servers: [...state.servers, action.data.server] }
+    case 'AddServers':
+      const serverWithoutTask = action.data.servers.map(server => {
+        const servTasks = server.tasks.map(task => {
+          return task.id.split(" ").join("")
+        })
+        return { ...server, tasks: servTasks }
+      })
+      db.servers.bulkPut(serverWithoutTask)
+      return { ...state, servers: [...action.data.servers] }
+    case 'LoadServers':
+      return { ...state, servers: action.data.servers }
     case 'ChangeConfig':
+      localStorage.setItem("app", JSON.stringify({ ...state, config: { ...state.config, ...action.data.config } }))
       return { ...state, config: { ...state.config, ...action.data.config } }
     default:
       throw new Error("Please provide valid reducer action")
@@ -110,9 +132,22 @@ export default function Home() {
   const [userStore, dispatchUserStore] = useReducer(userReducer, userInitialState)
   const [appStore, dispatchAppStore] = useReducer(appReducer, appInitialState)
   useEffect(() => {
+    try {
+      db.servers.toArray().then(servers => {
+        dispatchAppStore({ type: "LoadServers", data: { servers } })
+      }).finally(() => {
+        console.log("loaded server from indexed db")
+      })
+    } catch (e) {
+      console.log(e)
+      console.log("config's initial state not found")
+    }
+  }, [])
+  useEffect(() => {
     if (appStore.config.isLoggedIn) {
       onLoginClose()
     }
+
   }, [appStore])
   useEffect(() => {
     try {
@@ -182,7 +217,7 @@ export default function Home() {
                 <ServerList />
               </Box>
               <Box bg={color.base} flexGrow={19}>
-
+                <Main />
               </Box>
             </Flex>
 
